@@ -5,7 +5,7 @@ class CompHistory(object):
     instances = []
     count = 0
 
-    def __init__(self, size=1, members=None, delta=2, children_sizes=None, parent_sizes=None):
+    def __init__(self, size=1, members=None, delta=2, children_sizes=None, parent_sizes=None, neighbors=None):
         if members is None:
             members = set()
 
@@ -20,6 +20,8 @@ class CompHistory(object):
         else:
             assert len(parent_sizes) == delta
             self.parent_sizes = parent_sizes
+        if neighbors is None:
+            neighbors = set()
 
         self.delta = delta
         self.size = size
@@ -30,6 +32,10 @@ class CompHistory(object):
         self.right = None
         self.left = None
         self.members = members
+        self.neighbors = neighbors
+
+    def add_neighbor(self, entry):
+        self.neighbors.add(entry)
 
     def set_left(self, other):
         self.left = other
@@ -38,16 +44,22 @@ class CompHistory(object):
         self.right = other
 
     def __add__(self, other):
+        # Determine the size of the new(parent) connected componenet
         size = self.size + other.size
+        # Merged components are no longer toplevel
         self.toplevel = False
         other.toplevel = False
+        # Determine children components history for the new(parent) component
         operands = [self, other]
         max_size, idx = max((self.size, 0), (other.size, 1))
         larger = operands[idx]
         children_sizes = [larger.children_sizes[-1], larger.size]
 
+        # Join the components
         members = self.members.union(other.members)
-        history = CompHistory(size, members=members, children_sizes=children_sizes)
+        neighbors = self.neighbors.union(other.neighbors)
+        neighbors = neighbors.difference(members)
+        history = CompHistory(size, members=members, children_sizes=children_sizes, neighbors=neighbors)
         history.left = self
         history.right = other
         return history
