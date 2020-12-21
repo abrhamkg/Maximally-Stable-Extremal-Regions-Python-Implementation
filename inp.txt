@@ -1,0 +1,1 @@
+conda create -n cv python=3.6 anaconda numpy matplotlib opencv dlib scikit-learn pytorch torchvision torchaudio cpuonly -c conda-forge -c pytorch
