@@ -113,6 +113,7 @@ class MSER:
         history = filter(self.is_possibly_MSER, all_history)
 
         # Identify connected components corresponding to the MSERs
+        # TODO: Change unionfind to alleviate the need for the tree traversal below
         msers = []
         for parent_comp in history:
             ph = [parent_comp.size, parent_comp.size]
