@@ -33,9 +33,11 @@ class CompHistory(object):
         self.left = None
         self.members = members
         self.neighbors = neighbors
+        assert len(members.intersection(neighbors)) == 0
 
     def add_neighbor(self, entry):
-        self.neighbors.add(entry)
+        if entry not in self.members:
+            self.neighbors.add(entry)
 
     def set_left(self, other):
         self.left = other
@@ -106,6 +108,10 @@ class UnionFind(object):
         self.__history[q_root] = self.__history[q_root] + self.__history[p_root]
         self.__weight[p_root] = 0
         self.__count -= 1
+
+    def add_neighbor(self, pix, neighbor):
+        root = self.find(pix)
+        self.__history[root].add_neighbor(neighbor)
 
     def connected(self, p, q):
         return self.find(p) == self.find(q)

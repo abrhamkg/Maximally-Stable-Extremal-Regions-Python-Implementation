@@ -53,6 +53,20 @@ class MSER:
             raise ValueError(f'The number of thresholds must at least \
                              be 2 * delta + 1')
 
+    @staticmethod
+    def order_rotationally(points, order='CCW'):
+        """
+
+        @param points: A 2D numpy.ndarray with each row representing a point
+        @param order: Sort the points in clockwise or counter-clockwise order
+        @return:
+        """
+        centroid = points.mean(axis=0, keepdims=True)
+        coords = points - centroid
+        angles = np.arctan2(coords[:,1], coords[:,0])
+        sort_idxs = np.argsort(angles)
+        return points[sort_idxs, :]
+
     def detect(self, image):
         if image.ndim > 2:
             raise TypeError(f'A grayscale image expected but image had \
@@ -64,7 +78,7 @@ class MSER:
                                                        image_shape)
         sorted_coordinates = np.array(list(zip(row_indices, column_indices)))
 
-        threshold_list = np.linspace(0, 255, self.num_thresh, endpoint=True)
+        threshold_list = [127]#np.linspace(0, 255, self.num_thresh, endpoint=True)
 
         output_images = np.zeros((self.num_thresh, image_shape[0], image_shape[1]), dtype=np.uint8)
 
@@ -83,7 +97,7 @@ class MSER:
             ids = np.apply_along_axis(coords2id, 1, sorted_coordinates[end_index:, :], image_shape)
             neighbors = np.apply_along_axis(find_neighbors, 0, ids, image_shape).T
             # print(len(ids))
-            # print(neighbors)
+            print(neighbors)
             for j, pix_neighbors in enumerate(neighbors):
                 #print(pix_neighbors)
                 for neighbor in pix_neighbors:
@@ -94,6 +108,8 @@ class MSER:
                     if neighbor in ids:
                         # print(f"Merging {neighbor} and {j}")
                         UF.union(neighbor, pix)
+                    else:
+                        UF.add_neighbor(pix, neighbor)
 
             # im = output_images[i]
             # plt.imshow(im, cmap='gray')
@@ -120,7 +136,19 @@ class MSER:
             pq = [float('inf'), float('inf')]
             MSER.find_msers(parent_comp, msers, ph, pq, self.max_area, self.min_area, self.max_var)
         #start_index = end_index
-        return output_images, msers
+        print(msers)
+        contours = []
+        for mser in msers:
+            neighbors = mser.neighbors.difference(mser.members)
+            border_pixels = np.array(list(neighbors))
+            contour = np.apply_along_axis(id2coords, 0, border_pixels, image_shape).T
+            #contour = np.flip(contour, axis=1)
+            print(len(contour))
+            contour = MSER.order_rotationally(contour)
+            # print(contour.shape)
+            contours.append(contour)
+        # print(contours)
+        return output_images, msers, contours
 
     @staticmethod
     def find_msers(parent_comp, msers, parent_sizes, parent_q, max_area=2000, min_area=2, max_var=0.25):
@@ -212,24 +240,38 @@ class MSER:
 
 if __name__ == '__main__':
     # from scipy.ndimage import gaussian_filter
-    # image = np.zeros((50, 50))
+    image = np.zeros((50, 50))
     # length = 5
     # weight = np.linspace(0.1, 1, length).tolist() + np.linspace(1, 0.1, length).tolist()
     # weight = np.repeat(np.array(weight), 2 * length).reshape((2*length, 2*length))
     # print(weight.shape)
-    # image[10:20, 10:20] = 255
-    # image[30:40, 30:40] = 255
+    # One hollow square
+    # r, c, w, h = 10, 15, 5, 5
+    # image[r, c:c+w] = 255
+    # image[r+h, c:c+w] = 255
+    # image[r:r+h, c] = 255
+    # image[r:r+h+1, c+w] = 255
+    # cv2.imwrite(DATA_DIR + 'rect.png', image)
+    # Type two filled squares
+    image[10:20, 10:20] = 255
+    image[30:40, 30:40] = 255
     # image = gaussian_filter(image, sigma=2)
     #
     # cv2.imwrite(DATA_DIR + 'test.png', image)
-    im = cv2.imread(os.path.join(DATA_DIR, 'cameraman.png'))
+    im = cv2.imread(os.path.join(DATA_DIR, 'test.png'))
     im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
 
     mser_detector = MSER()
+    output, history, contours = mser_detector.detect(im)
+    # print(len(contours))
+    # print(history[0].members.intersection(history[0].neighbors))
+    for i in range(len(contours)):
+        cv2.drawContours(im, contours, i, (255, 0, 0), 0)
+    # print(sorted(history, key=lambda g:g.size, reverse=True))
+    # cv2.imshow("win", im)
+    # cv2.waitKey()
     plt.imshow(im)
     plt.figure()
-    output, history = mser_detector.detect(im)
-    print(sorted(history, key=lambda g:g.size, reverse=True))
     # for i, im in enumerate(output):
     #     plt.imshow(im, cmap='gray', vmin=0, vmax=255)
     #     plt.title(str(i + 1))
