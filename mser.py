@@ -49,8 +49,10 @@ class MSER:
     def order_rotationally(points):
         """
         Orders points starting from a point and
+        @type points: np.ndarray
         @param points: A 2D numpy.ndarray with each row representing a point
-        @return:
+        @rtype: np.ndarray
+        @return: The rotationally sorted Numpy array of points
         """
         centroid = points.mean(axis=0, keepdims=True)
         coords = points - centroid
@@ -75,7 +77,6 @@ class MSER:
         sorting_indices = np.argsort(image)
         row_indices, column_indices = np.unravel_index(sorting_indices,
                                                        image_shape)
-        sorted_coordinates = np.array(list(zip(row_indices, column_indices)))
 
         threshold_list = np.linspace(0, 255, self.num_thresh, endpoint=True)
 
@@ -90,13 +91,15 @@ class MSER:
             end_index = bisect.bisect(sorted_intensity, threshold)
             if end_index >= image.size:
                 continue
-
+            # Build the thresholded image
             output_images[i, row_indices[end_index:], column_indices[end_index:]] = 255
             ids = sorting_indices[end_index:]
+            # Find the neighboring pixels of all white pixels
             neighbors = np.apply_along_axis(find_neighbors, 0, ids, image_shape).T
 
             for j, pix_neighbors in enumerate(neighbors):
                 for neighbor in pix_neighbors:
+                    # TODO: Handle pixels on image edges (3 neighbors)
                     if neighbor < 0 or neighbor > image.size:
                         continue
                     # If a neighbor is a white pixel it is part of connected component else it is border pixel
@@ -108,6 +111,8 @@ class MSER:
 
         all_history = UF.get_top_level_history()
         history = filter(self.is_possibly_MSER, all_history)
+
+        # Identify connected components corresponding to the MSERs
         msers = []
         for parent_comp in history:
             ph = [parent_comp.size, parent_comp.size]
@@ -127,15 +132,35 @@ class MSER:
 
     @staticmethod
     def find_msers(parent_comp, msers, parent_sizes, parent_q, max_area=2000, min_area=2, max_var=0.25):
+        """
+        @type parent_comp: unionfind.CompHistory
+        @param parent_comp: Connected component node for which MSERness is to be determined
+        @type msers: list
+        @param msers: A list to hold all MSERs found by traversing the connected component tree
+        @type parent_sizes: list
+        @param parent_sizes: A list containing the areas of 'delta' number of ancestors of a node
+        @type parent_q: list
+        @param parent_q: A list containing the 'Q's of 'delta' number of ancestors of a node
+        @type max_area: Number
+        @param max_area: The maximum area of a blob to be counted as an MSER
+        @type min_area: Number
+        @param min_area: The minimum are of a a blob to be counted as an MSER
+        @type max_var: number
+        @param max_var: The relative size variation between parent and child node allowed
+        @rtype: list
+        @return: A list containing the size of 'delta' number of child nodes
+        """
         if parent_comp is None:
             return [0] * len(parent_sizes)
 
         q = (parent_sizes[-1] - parent_comp.children_sizes[0]) / parent_comp.size
+
         ph = copy.copy(parent_sizes)
         pq = copy.copy(parent_q)
         ph = [parent_comp.size] + ph[:-1]
         pq = [q] + pq[:-1]
-        # The Union-Find algorithm always puts the larger componenet on the left
+
+        # The Union-Find algorithm always puts the larger component on the left
         child_q = MSER.find_msers(parent_comp.left, msers, ph, pq, max_var)
         MSER.find_msers(parent_comp.right, msers, ph, pq, max_var)
 
@@ -143,6 +168,7 @@ class MSER:
         var = (parent_comp.size - parent_comp.children_sizes[-1])/(parent_comp.size)
         if min(all_q) == q and var < max_var and (min_area < parent_comp.size < max_area):
             msers.append(parent_comp)
+
         return child_q[1:] + [q]
 
     def is_possibly_MSER(self, component):
